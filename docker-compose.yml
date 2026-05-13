@@ -1,0 +1,56 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: dropit_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dropit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dropit_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-dropit}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dropit}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dropit_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dropit}:${POSTGRES_PASSWORD:-dropit_secret}@db:5432/${POSTGRES_DB:-dropit}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
+      AZURE_AD_CLIENT_SECRET: ${AZURE_AD_CLIENT_SECRET}
+      AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+    ports:
+      - "3000:3000"
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
+    container_name: dropit_migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dropit}:${POSTGRES_PASSWORD:-dropit_secret}@db:5432/${POSTGRES_DB:-dropit}
+    restart: "no"
+
+volumes:
+  postgres_data:
